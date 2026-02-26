@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
-	pb "github.com/iggydv12/nomad-go/gen/proto/superpeerservice"
-	"github.com/iggydv12/nomad-go/internal/ledger"
+	pb "github.com/iggydv12/gomad/gen/proto/superpeerservice"
+	"github.com/iggydv12/gomad/internal/ledger"
 )
 
 const superPeerDeadline = 350 * time.Millisecond

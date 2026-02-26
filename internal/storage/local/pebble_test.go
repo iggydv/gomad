@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
-	"github.com/iggydv12/nomad-go/internal/storage/local"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
+	"github.com/iggydv12/gomad/internal/storage/local"
 )
 
 func setupPebble(t *testing.T) *local.PebbleStorage {

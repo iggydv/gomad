@@ -2,7 +2,7 @@
 package local
 
 import (
-	models "github.com/iggydv12/nomad-go/gen/proto/models"
+	models "github.com/iggydv12/gomad/gen/proto/models"
 )
 
 // LocalStorage is the interface for the single-node authoritative KV store.

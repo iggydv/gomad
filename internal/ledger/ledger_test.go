@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/iggydv12/nomad-go/internal/ledger"
+	"github.com/iggydv12/gomad/internal/ledger"
 )
 
 func TestAddAndRetrieve(t *testing.T) {

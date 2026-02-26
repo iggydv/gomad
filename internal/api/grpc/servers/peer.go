@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	pb "github.com/iggydv12/nomad-go/gen/proto/peerservice"
+	pb "github.com/iggydv12/gomad/gen/proto/peerservice"
 )
 
 // PeerServiceServer implements the PeerService gRPC server.

@@ -4,24 +4,25 @@ package group
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
+	clients2 "github.com/iggydv12/gomad/internal/api/grpc/clients"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/iggydv12/nomad-go/api/grpc/clients"
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
-	"github.com/iggydv12/nomad-go/internal/ledger"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
+	"github.com/iggydv12/gomad/internal/ledger"
 )
 
 // GroupStorage fans out storage operations to all replica peers in the group.
 // Maps to GroupStorage.java in the Java implementation.
 type GroupStorage struct {
 	mu          sync.RWMutex
-	peers       map[string]*clients.GroupStorageClient // target → client
-	rf          int // replication factor
-	spClient    *clients.SuperPeerClient
+	peers       map[string]*clients2.GroupStorageClient // target → client
+	rf          int                                     // replication factor
+	spClient    *clients2.SuperPeerClient
 	logger      *zap.Logger
 	groupLedger *ledger.GroupLedger
 	selfHost    string
@@ -30,7 +31,7 @@ type GroupStorage struct {
 // New creates a GroupStorage.
 func New(rf int, gl *ledger.GroupLedger, logger *zap.Logger) *GroupStorage {
 	return &GroupStorage{
-		peers:       make(map[string]*clients.GroupStorageClient),
+		peers:       make(map[string]*clients2.GroupStorageClient),
 		rf:          rf,
 		groupLedger: gl,
 		logger:      logger,
@@ -38,7 +39,7 @@ func New(rf int, gl *ledger.GroupLedger, logger *zap.Logger) *GroupStorage {
 }
 
 // SetSuperPeerClient sets the super-peer client reference.
-func (gs *GroupStorage) SetSuperPeerClient(c *clients.SuperPeerClient) {
+func (gs *GroupStorage) SetSuperPeerClient(c *clients2.SuperPeerClient) {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
 	gs.spClient = c
@@ -57,13 +58,7 @@ func (gs *GroupStorage) UpdateClients(hosts []string) {
 	defer gs.mu.Unlock()
 	// Close removed clients
 	for target, c := range gs.peers {
-		found := false
-		for _, h := range hosts {
-			if h == target {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(hosts, target)
 		if !found {
 			c.Close()
 			delete(gs.peers, target)
@@ -75,7 +70,7 @@ func (gs *GroupStorage) UpdateClients(hosts []string) {
 			continue
 		}
 		if _, exists := gs.peers[h]; !exists {
-			c, err := clients.NewGroupStorageClient(h, gs.logger)
+			c, err := clients2.NewGroupStorageClient(h, gs.logger)
 			if err != nil {
 				gs.logger.Warn("failed to create group storage client", zap.String("target", h), zap.Error(err))
 				continue
@@ -95,7 +90,7 @@ func (gs *GroupStorage) AddPeer(host string) {
 	if _, exists := gs.peers[host]; exists {
 		return
 	}
-	c, err := clients.NewGroupStorageClient(host, gs.logger)
+	c, err := clients2.NewGroupStorageClient(host, gs.logger)
 	if err != nil {
 		gs.logger.Warn("failed to add group storage peer", zap.String("host", host), zap.Error(err))
 		return
@@ -127,11 +122,11 @@ func (gs *GroupStorage) CloseClients() {
 	for _, c := range gs.peers {
 		c.Close()
 	}
-	gs.peers = make(map[string]*clients.GroupStorageClient)
+	gs.peers = make(map[string]*clients2.GroupStorageClient)
 }
 
 // GetClient returns the client for the given hostname, or nil if not found.
-func (gs *GroupStorage) GetClient(host string) *clients.GroupStorageClient {
+func (gs *GroupStorage) GetClient(host string) *clients2.GroupStorageClient {
 	gs.mu.RLock()
 	defer gs.mu.RUnlock()
 	return gs.peers[host]
@@ -151,7 +146,7 @@ func (gs *GroupStorage) PeerList() []string {
 // NotifyAllPeersObjectAdded notifies all peers to record object→peer in their ledgers.
 func (gs *GroupStorage) NotifyAllPeersObjectAdded(objectID string, ttl int64, selfGSHost string) {
 	gs.mu.RLock()
-	peers := make([]*clients.GroupStorageClient, 0, len(gs.peers))
+	peers := make([]*clients2.GroupStorageClient, 0, len(gs.peers))
 	for _, c := range gs.peers {
 		peers = append(peers, c)
 	}
@@ -175,7 +170,7 @@ func (gs *GroupStorage) NotifyAllPeersObjectAdded(objectID string, ttl int64, se
 // NotifyAllPeersRemovePeer notifies all peers to remove a peer from their ledgers.
 func (gs *GroupStorage) NotifyAllPeersRemovePeer(peerID string) {
 	gs.mu.RLock()
-	peers := make([]*clients.GroupStorageClient, 0, len(gs.peers))
+	peers := make([]*clients2.GroupStorageClient, 0, len(gs.peers))
 	for _, c := range gs.peers {
 		peers = append(peers, c)
 	}
@@ -208,7 +203,7 @@ func (gs *GroupStorage) FastPut(obj *pbm.GameObjectGrpc) (bool, error) {
 	defer cancel()
 
 	for _, c := range peers {
-		go func(c *clients.GroupStorageClient) {
+		go func(c *clients2.GroupStorageClient) {
 			ok, err := c.Put(obj)
 			ch <- result{ok, err}
 		}(c)
@@ -238,7 +233,6 @@ func (gs *GroupStorage) SafePut(obj *pbm.GameObjectGrpc) (bool, error) {
 	_ = ctx
 
 	for _, c := range peers {
-		c := c
 		eg.Go(func() error {
 			ok, err := c.Put(obj)
 			if err != nil {
@@ -272,7 +266,7 @@ func (gs *GroupStorage) FastGet(id string) (*pbm.GameObjectGrpc, error) {
 	defer cancel()
 
 	for _, c := range peers {
-		go func(c *clients.GroupStorageClient) {
+		go func(c *clients2.GroupStorageClient) {
 			obj, err := c.Get(id)
 			if obj != nil {
 				ch <- result{obj, nil}
@@ -321,7 +315,7 @@ func (gs *GroupStorage) SafeGet(id string) (*pbm.GameObjectGrpc, error) {
 	defer cancel()
 
 	for _, c := range peers {
-		go func(c *clients.GroupStorageClient) {
+		go func(c *clients2.GroupStorageClient) {
 			obj, err := c.Get(id)
 			ch <- result{obj, err}
 		}(c)
@@ -332,7 +326,7 @@ func (gs *GroupStorage) SafeGet(id string) (*pbm.GameObjectGrpc, error) {
 	counts := make(map[string]int)
 	var best *pbm.GameObjectGrpc
 
-	for i := 0; i < len(peers); i++ {
+	for range peers {
 		select {
 		case r := <-ch:
 			if r.obj != nil {
@@ -360,7 +354,6 @@ func (gs *GroupStorage) SafeUpdate(obj *pbm.GameObjectGrpc) (bool, error) {
 
 	eg, _ := errgroup.WithContext(context.Background())
 	for _, c := range peers {
-		c := c
 		eg.Go(func() error {
 			_, err := c.Update(obj)
 			return err
@@ -380,7 +373,6 @@ func (gs *GroupStorage) SafeDelete(id string) (bool, error) {
 
 	eg, _ := errgroup.WithContext(context.Background())
 	for _, c := range peers {
-		c := c
 		eg.Go(func() error {
 			_, err := c.Delete(id)
 			return err
@@ -409,8 +401,8 @@ func (gs *GroupStorage) CheckClient(host string) {
 }
 
 // activePeers returns active clients (must be called with read lock held OR snapshot).
-func (gs *GroupStorage) activePeers() []*clients.GroupStorageClient {
-	list := make([]*clients.GroupStorageClient, 0, len(gs.peers))
+func (gs *GroupStorage) activePeers() []*clients2.GroupStorageClient {
+	list := make([]*clients2.GroupStorageClient, 0, len(gs.peers))
 	for _, c := range gs.peers {
 		if c.IsActive() {
 			list = append(list, c)

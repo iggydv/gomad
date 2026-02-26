@@ -1,6 +1,6 @@
-module github.com/iggydv12/nomad-go
+module github.com/iggydv12/gomad
 
-go 1.23
+go 1.26.0
 
 require (
 	github.com/avast/retry-go/v4 v4.6.0
@@ -12,6 +12,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.13.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
+	github.com/stretchr/testify v1.9.0
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	go.uber.org/zap v1.27.0
@@ -164,7 +165,6 @@ require (
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/swaggo/swag v1.16.3 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

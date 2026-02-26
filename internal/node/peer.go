@@ -5,13 +5,13 @@ import (
 	"time"
 
 	retry "github.com/avast/retry-go/v4"
+	"github.com/iggydv12/gomad/internal/api/grpc/clients"
 	"go.uber.org/zap"
 
-	"github.com/iggydv12/nomad-go/api/grpc/clients"
-	"github.com/iggydv12/nomad-go/internal/config"
-	"github.com/iggydv12/nomad-go/internal/ledger"
-	"github.com/iggydv12/nomad-go/internal/spatial"
-	"github.com/iggydv12/nomad-go/internal/storage"
+	"github.com/iggydv12/gomad/internal/config"
+	"github.com/iggydv12/gomad/internal/ledger"
+	"github.com/iggydv12/gomad/internal/spatial"
+	"github.com/iggydv12/gomad/internal/storage"
 )
 
 // Peer implements the regular storage peer role.
@@ -158,7 +158,7 @@ func (p *Peer) RepairObjects(objectIDs []string) bool {
 
 // --- servers.GroupStorageHandler implementation ---
 
-func (p *Peer) Get(id string) (interface{}, error) {
+func (p *Peer) Get(id string) (any, error) {
 	return p.peerStorage.Get(id, false, false)
 }
 
@@ -254,7 +254,7 @@ func (p *Peer) migrate(newSP, newGroup string) {
 }
 
 // PeerStorageGet implements a direct Get for the peer storage REST/gRPC handler.
-func (p *Peer) PeerStorageGet(id string) (interface{}, error) {
+func (p *Peer) PeerStorageGet(id string) (any, error) {
 	return p.peerStorage.Get(id, true, true)
 }
 

@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
-	pbps "github.com/iggydv12/nomad-go/gen/proto/peerstorage"
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
+	pbps "github.com/iggydv12/gomad/gen/proto/peerstorage"
 )
 
 // PeerStorageServiceServer implements the PeerStorageService gRPC server.

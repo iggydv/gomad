@@ -66,10 +66,10 @@ protoc \
 protoc \
     --go_out="${PROJECT_ROOT}/gen/proto/groupstorage" \
     --go_opt=paths=source_relative \
-    --go_opt=MGameObject.proto=github.com/iggydv12/nomad-go/gen/proto/models \
+    --go_opt=MGameObject.proto=github.com/iggydv12/gomad/gen/proto/models \
     --go-grpc_out="${PROJECT_ROOT}/gen/proto/groupstorage" \
     --go-grpc_opt=paths=source_relative \
-    --go-grpc_opt=MGameObject.proto=github.com/iggydv12/nomad-go/gen/proto/models \
+    --go-grpc_opt=MGameObject.proto=github.com/iggydv12/gomad/gen/proto/models \
     -I "${PROJECT_ROOT}/proto" \
     "${PROJECT_ROOT}/proto/GroupStorageService.proto"
 
@@ -77,10 +77,10 @@ protoc \
 protoc \
     --go_out="${PROJECT_ROOT}/gen/proto/peerstorage" \
     --go_opt=paths=source_relative \
-    --go_opt=MGameObject.proto=github.com/iggydv12/nomad-go/gen/proto/models \
+    --go_opt=MGameObject.proto=github.com/iggydv12/gomad/gen/proto/models \
     --go-grpc_out="${PROJECT_ROOT}/gen/proto/peerstorage" \
     --go-grpc_opt=paths=source_relative \
-    --go-grpc_opt=MGameObject.proto=github.com/iggydv12/nomad-go/gen/proto/models \
+    --go-grpc_opt=MGameObject.proto=github.com/iggydv12/gomad/gen/proto/models \
     -I "${PROJECT_ROOT}/proto" \
     "${PROJECT_ROOT}/proto/PeerStorageService.proto"
 

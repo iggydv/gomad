@@ -33,7 +33,7 @@ spec:
     spec:
       containers:
         - name: nomad
-          image: nomad-go:latest
+          image: gomad:latest
           imagePullPolicy: IfNotPresent
           args:
             - "start"

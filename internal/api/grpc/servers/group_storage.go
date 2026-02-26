@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	pbgs "github.com/iggydv12/nomad-go/gen/proto/groupstorage"
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
+	pbgs "github.com/iggydv12/gomad/gen/proto/groupstorage"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
 )
 
 // GroupStorageServiceServer implements the GroupStorageService gRPC server.

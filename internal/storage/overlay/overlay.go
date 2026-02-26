@@ -2,7 +2,7 @@
 package overlay
 
 import (
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
 )
 
 // DHTOverlayStorage is the interface for the DHT-backed inter-group storage layer.

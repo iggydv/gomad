@@ -6,13 +6,13 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/iggydv12/gomad/internal/api/grpc/clients"
+	"github.com/iggydv12/gomad/internal/api/grpc/servers"
 	"go.uber.org/zap"
 
-	"github.com/iggydv12/nomad-go/api/grpc/clients"
-	"github.com/iggydv12/nomad-go/api/grpc/servers"
-	"github.com/iggydv12/nomad-go/internal/config"
-	"github.com/iggydv12/nomad-go/internal/ledger"
-	"github.com/iggydv12/nomad-go/internal/spatial"
+	"github.com/iggydv12/gomad/internal/config"
+	"github.com/iggydv12/gomad/internal/ledger"
+	"github.com/iggydv12/gomad/internal/spatial"
 )
 
 // SuperPeer implements the group leader role.

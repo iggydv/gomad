@@ -18,7 +18,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
 
-	"github.com/iggydv12/nomad-go/internal/spatial"
+	"github.com/iggydv12/gomad/internal/spatial"
 )
 
 const (

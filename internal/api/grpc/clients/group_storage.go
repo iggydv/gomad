@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	pbgs "github.com/iggydv12/nomad-go/gen/proto/groupstorage"
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
+	pbgs "github.com/iggydv12/gomad/gen/proto/groupstorage"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
 )
 
 // GroupStorageClient is a gRPC client for the GroupStorageService.
@@ -48,8 +48,8 @@ func (c *GroupStorageClient) Close() error {
 	return c.conn.Close()
 }
 
-func (c *GroupStorageClient) IsActive() bool  { return c.active }
-func (c *GroupStorageClient) Target() string  { return c.target }
+func (c *GroupStorageClient) IsActive() bool { return c.active }
+func (c *GroupStorageClient) Target() string { return c.target }
 
 // HealthCheck sends a single health check.
 func (c *GroupStorageClient) HealthCheck() (bool, error) {

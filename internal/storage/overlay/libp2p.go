@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
 )
 
 const dhtKeyPrefix = "/nomad/obj/"

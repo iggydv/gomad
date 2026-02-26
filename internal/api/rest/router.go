@@ -9,9 +9,9 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
-	"github.com/iggydv12/nomad-go/internal/ledger"
-	"github.com/iggydv12/nomad-go/internal/storage"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
+	"github.com/iggydv12/gomad/internal/ledger"
+	"github.com/iggydv12/gomad/internal/storage"
 )
 
 // Server is the REST API server.

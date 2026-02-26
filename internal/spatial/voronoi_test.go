@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/iggydv12/nomad-go/internal/spatial"
+	"github.com/iggydv12/gomad/internal/spatial"
 )
 
 func TestFindNearestSuperPeer(t *testing.T) {
@@ -40,7 +40,7 @@ func TestIsWithinAOI(t *testing.T) {
 }
 
 func TestNewRandomPosition(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		pos := spatial.NewRandomPosition(10.0, 10.0)
 		assert.GreaterOrEqual(t, pos.X, 0.0)
 		assert.Less(t, pos.X, 10.0)

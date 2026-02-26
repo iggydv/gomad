@@ -11,26 +11,26 @@ import (
 	"syscall"
 	"time"
 
+	servers2 "github.com/iggydv12/gomad/internal/api/grpc/servers"
 	"go.uber.org/zap"
 
-	"github.com/iggydv12/nomad-go/api/grpc/servers"
-	"github.com/iggydv12/nomad-go/internal/config"
-	"github.com/iggydv12/nomad-go/internal/discovery"
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
-	"github.com/iggydv12/nomad-go/internal/ledger"
-	"github.com/iggydv12/nomad-go/internal/spatial"
-	"github.com/iggydv12/nomad-go/internal/storage"
-	"github.com/iggydv12/nomad-go/internal/storage/group"
-	"github.com/iggydv12/nomad-go/internal/storage/local"
-	"github.com/iggydv12/nomad-go/internal/storage/overlay"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
+	"github.com/iggydv12/gomad/internal/config"
+	"github.com/iggydv12/gomad/internal/discovery"
+	"github.com/iggydv12/gomad/internal/ledger"
+	"github.com/iggydv12/gomad/internal/spatial"
+	"github.com/iggydv12/gomad/internal/storage"
+	"github.com/iggydv12/gomad/internal/storage/group"
+	"github.com/iggydv12/gomad/internal/storage/local"
+	"github.com/iggydv12/gomad/internal/storage/overlay"
 )
 
 // Controller bootstraps the node, wires all components, and runs until shutdown.
 type Controller struct {
-	cfg       *config.Config
-	nodeType  ComponentType
-	logger    *zap.Logger
-	peerID    string
+	cfg      *config.Config
+	nodeType ComponentType
+	logger   *zap.Logger
+	peerID   string
 }
 
 // NewController creates a Controller for the given node type.
@@ -156,14 +156,14 @@ func (c *Controller) bootstrapSuperPeer(
 	})
 
 	// Start gRPC servers
-	spSrv := servers.NewSuperPeerServiceServer(sp, gl, c.logger)
+	spSrv := servers2.NewSuperPeerServiceServer(sp, gl, c.logger)
 	grpcSP, err := spSrv.Serve(peerServerAddr)
 	if err != nil {
 		return fmt.Errorf("superpeer gRPC serve: %w", err)
 	}
 	defer grpcSP.Stop()
 
-	gsSrv := servers.NewGroupStorageServiceServer(&groupStorageHandler{ps: ps, gl: gl}, c.logger)
+	gsSrv := servers2.NewGroupStorageServiceServer(&groupStorageHandler{ps: ps, gl: gl}, c.logger)
 	grpcGS, err := gsSrv.Serve(gsAddr)
 	if err != nil {
 		return fmt.Errorf("group storage gRPC serve: %w", err)
@@ -214,7 +214,7 @@ func (c *Controller) bootstrapPeer(
 	}
 
 	// Start gRPC PeerService server
-	peerSrv := servers.NewPeerServiceServer(peer, c.logger)
+	peerSrv := servers2.NewPeerServiceServer(peer, c.logger)
 	grpcPeer, err := peerSrv.Serve(peerServerAddr)
 	if err != nil {
 		return fmt.Errorf("peer gRPC serve: %w", err)
@@ -222,7 +222,7 @@ func (c *Controller) bootstrapPeer(
 	defer grpcPeer.Stop()
 
 	// Start GroupStorage gRPC server (this peer also serves group storage)
-	gsSrv := servers.NewGroupStorageServiceServer(&groupStorageHandler{ps: ps, gl: gl}, c.logger)
+	gsSrv := servers2.NewGroupStorageServiceServer(&groupStorageHandler{ps: ps, gl: gl}, c.logger)
 	grpcGS, err := gsSrv.Serve(gsAddr)
 	if err != nil {
 		return fmt.Errorf("group storage gRPC serve: %w", err)
@@ -397,7 +397,7 @@ func (h *groupStorageHandler) RemovePeerGroupLedger(peerID string) bool {
 
 // voronoiAdapter satisfies discovery.VoronoiQuerier using spatial.VoronoiWrapper.
 type voronoiAdapter struct {
-	voronoi *spatial.VoronoiWrapper
+	voronoi  *spatial.VoronoiWrapper
 	selfSite spatial.SitePoint
 }
 

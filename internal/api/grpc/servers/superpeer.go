@@ -10,17 +10,17 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/iggydv12/nomad-go/internal/ledger"
-	pb "github.com/iggydv12/nomad-go/gen/proto/superpeerservice"
+	pb "github.com/iggydv12/gomad/gen/proto/superpeerservice"
+	"github.com/iggydv12/gomad/internal/ledger"
 )
 
 // SuperPeerServiceServer implements the SuperPeerService gRPC server.
 // Maps to SuperPeerService.java + SuperPeerServer.java in the Java implementation.
 type SuperPeerServiceServer struct {
 	pb.UnimplementedSuperPeerServiceServer
-	logger     *zap.Logger
+	logger      *zap.Logger
 	groupLedger *ledger.GroupLedger
-	handler    SuperPeerHandler
+	handler     SuperPeerHandler
 }
 
 // SuperPeerHandler is the interface the node's SuperPeer component must implement

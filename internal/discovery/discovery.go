@@ -1,7 +1,7 @@
 // Package discovery defines the peer discovery interface.
 package discovery
 
-import "github.com/iggydv12/nomad-go/internal/spatial"
+import "github.com/iggydv12/gomad/internal/spatial"
 
 // SuperPeerInfo holds information about a discovered super-peer.
 type SuperPeerInfo struct {

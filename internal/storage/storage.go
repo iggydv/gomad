@@ -9,11 +9,11 @@ import (
 
 	"go.uber.org/zap"
 
-	pbm "github.com/iggydv12/nomad-go/gen/proto/models"
-	"github.com/iggydv12/nomad-go/internal/ledger"
-	"github.com/iggydv12/nomad-go/internal/storage/group"
-	"github.com/iggydv12/nomad-go/internal/storage/local"
-	"github.com/iggydv12/nomad-go/internal/storage/overlay"
+	pbm "github.com/iggydv12/gomad/gen/proto/models"
+	"github.com/iggydv12/gomad/internal/ledger"
+	"github.com/iggydv12/gomad/internal/storage/group"
+	"github.com/iggydv12/gomad/internal/storage/local"
+	"github.com/iggydv12/gomad/internal/storage/overlay"
 )
 
 // PeerStorage is the facade that orchestrates local, group, and overlay storage.

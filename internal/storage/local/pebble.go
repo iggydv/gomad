@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble"
-	models "github.com/iggydv12/nomad-go/gen/proto/models"
+	models "github.com/iggydv12/gomad/gen/proto/models"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
@@ -196,10 +196,10 @@ type pebbleLogger struct {
 	z *zap.Logger
 }
 
-func (l *pebbleLogger) Infof(format string, args ...interface{}) {
+func (l *pebbleLogger) Infof(format string, args ...any) {
 	l.z.Sugar().Infof(format, args...)
 }
 
-func (l *pebbleLogger) Fatalf(format string, args ...interface{}) {
+func (l *pebbleLogger) Fatalf(format string, args ...any) {
 	l.z.Sugar().Fatalf(format, args...)
 }
