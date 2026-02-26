@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nomad-headless
+  labels:
+    app: nomad
+spec:
+  clusterIP: None
+  selector:
+    app: nomad
+  ports:
+    - name: rest
+      port: 8080
+    - name: grpc-peer
+      port: 6731
+    - name: grpc-storage
+      port: 6735
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nomad
+spec:
+  serviceName: nomad-headless
+  replicas: 4
+  selector:
+    matchLabels:
+      app: nomad
+  template:
+    metadata:
+      labels:
+        app: nomad
+    spec:
+      containers:
+        - name: nomad
+          image: nomad-go:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "start"
+            - "-t"
+            - "peer"
+          env:
+            - name: NODE_MAXPEERS
+              value: "10"
+            - name: NODE_STORAGE_REPLICATIONFACTOR
+              value: "3"
+          ports:
+            - containerPort: 8080
+              name: rest
+          volumeMounts:
+            - name: pebble-data
+              mountPath: /tmp/nomad-pebble
+          livenessProbe:
+            httpGet:
+              path: /nomad/storage/get/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+  volumeClaimTemplates:
+    - metadata:
+        name: pebble-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

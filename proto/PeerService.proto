@@ -1,0 +1,61 @@
+syntax = "proto3";
+package grpc.peerservice;
+option go_package = "github.com/iggydv12/nomad-go/gen/proto/peerservice";
+import "google/protobuf/empty.proto";
+
+/**
+ * Second iteration of the peer, more in line with Pithos architecture
+ *
+ * 1. receives all store, retrieve and modify requests from the higher application layer,
+ * 2. forwards those requests to the required modules,
+ * 3. forwards responses received from modules to the higher layer,
+ * 4. keeps track of all outstanding requests (Section 5.3.3), and
+ * 5. implements the quorum mechanism.
+ */
+
+service PeerService {
+  rpc addPeer(AddPeerRequest) returns (AddPeerResponse);
+  rpc removePeer(RemovePeerRequest) returns (RemovePeerResponse);
+  rpc handleSuperPeerLeave(google.protobuf.Empty) returns (SuperPeerLeaveResponse);
+  rpc repairObjects(RepairObjectRequest) returns (RepairObjectResponse);
+}
+
+/* =========================== */
+/* ADD PEER                    */
+/* =========================== */
+message AddPeerRequest {
+  string host = 1;
+}
+
+message AddPeerResponse {
+  bool response = 1;
+}
+
+/* =========================== */
+/* REMOVE PEER                 */
+/* =========================== */
+message RemovePeerRequest {
+  string host = 1;
+}
+
+message RemovePeerResponse {
+  bool response = 1;
+}
+
+/* =========================== */
+/* SUPER PEER LEAVE            */
+/* =========================== */
+message SuperPeerLeaveResponse {
+  bool response = 1;
+}
+
+/* =========================== */
+/* REPAIR OBJECT               */
+/* =========================== */
+message RepairObjectRequest {
+  repeated string objectIds = 1;
+}
+
+message RepairObjectResponse {
+  bool response = 1;
+}

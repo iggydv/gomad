@@ -1,0 +1,26 @@
+node:
+  maxPeers: 5
+  group:
+    migration: false
+    voronoiGrouping: false
+  storage:
+    replicationFactor: 3
+    storageMode: "fast"
+    retrievalMode: "fast"
+  networkHostnames:
+    peerServer: ""
+    peerStorageServer: ""
+    overlayHostname: ""
+    superPeerServer: ""
+    groupStorageServer: ""
+  world:
+    height: 10.0
+    width: 10.0
+
+schedule:
+  healthCheck: 20s
+  dhtBootstrap: 500s
+  dbCleanup: 60s
+  ledgerCleanup: 60s
+  repair: 6000s
+  updatePosition: 10s

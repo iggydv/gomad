@@ -1,0 +1,71 @@
+# Docker Compose for Nomad Go — no ZooKeeper required!
+# All node discovery happens via libp2p mDNS + Kademlia DHT
+version: "3.9"
+
+services:
+  nomad-super-peer-1:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["-t", "super-peer"]
+    environment:
+      - NODE_MAXPEERS=10
+      - NODE_STORAGE_REPLICATIONFACTOR=3
+      - NODE_STORAGE_STORAGEMODE=fast
+      - NODE_STORAGE_RETRIEVALMODE=fast
+    networks:
+      - nomad-net
+    restart: unless-stopped
+    volumes:
+      - sp1-data:/tmp/nomad-pebble
+    labels:
+      - "nomad.role=super-peer"
+
+  nomad-peer-1:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["-t", "peer"]
+    depends_on:
+      - nomad-super-peer-1
+    networks:
+      - nomad-net
+    restart: unless-stopped
+    volumes:
+      - peer1-data:/tmp/nomad-pebble
+
+  nomad-peer-2:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["-t", "peer"]
+    depends_on:
+      - nomad-super-peer-1
+    networks:
+      - nomad-net
+    restart: unless-stopped
+    volumes:
+      - peer2-data:/tmp/nomad-pebble
+
+  nomad-peer-3:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["-t", "peer"]
+    depends_on:
+      - nomad-super-peer-1
+    networks:
+      - nomad-net
+    restart: unless-stopped
+    volumes:
+      - peer3-data:/tmp/nomad-pebble
+
+volumes:
+  sp1-data:
+  peer1-data:
+  peer2-data:
+  peer3-data:
+
+networks:
+  nomad-net:
+    driver: bridge

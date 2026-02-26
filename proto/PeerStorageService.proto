@@ -1,0 +1,53 @@
+syntax = "proto3";
+package grpc.peerstorage;
+option go_package = "github.com/iggydv12/nomad-go/gen/proto/peerstorage";
+import "GameObject.proto";
+
+service PeerStorageService {
+  rpc get(GetObjectRequest) returns (GetObjectResponse);
+  rpc put(PutObjectRequest) returns (PutObjectResponse);
+  rpc update(UpdateObjectRequest) returns (UpdateObjectResponse);
+  rpc delete(DeleteObjectRequest) returns (DeleteObjectResponse);
+
+}
+/* =========================== */
+/* GET */
+/* =========================== */
+message GetObjectRequest {
+  string id = 1;
+}
+
+message GetObjectResponse {
+  grpc.models.GameObjectGrpc object = 1;
+  bool result = 2;
+}
+/* =========================== */
+/* PUT */
+/* =========================== */
+message PutObjectRequest {
+  grpc.models.GameObjectGrpc object = 1;
+}
+
+message PutObjectResponse {
+  bool result = 1;
+}
+/* =========================== */
+/* UPDATE */
+/* =========================== */
+message UpdateObjectRequest {
+  grpc.models.GameObjectGrpc object = 1;
+}
+
+message UpdateObjectResponse {
+  bool result = 1;
+}
+/* =========================== */
+/* DELETE */
+/* =========================== */
+message DeleteObjectRequest {
+  string id = 1;
+}
+
+message DeleteObjectResponse {
+  bool result = 1;
+}

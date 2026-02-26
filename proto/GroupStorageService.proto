@@ -1,0 +1,94 @@
+syntax = "proto3";
+package grpc.groupstorage;
+option go_package = "github.com/iggydv12/nomad-go/gen/proto/groupstorage";
+import "google/protobuf/empty.proto";
+import "GameObject.proto";
+
+service GroupStorageService {
+  rpc get(GetObjectRequest) returns (GetObjectResponse);
+  rpc put(PutObjectRequest) returns (PutObjectResponse);
+  rpc update(UpdateObjectRequest) returns (UpdateObjectResponse);
+  rpc delete(DeleteObjectRequest) returns (DeleteObjectResponse);
+  rpc addToGroupLedger(AddToGroupLedgerRequest) returns (AddToGroupLedgerResponse);
+  rpc removePeerGroupLedger(RemovePeerGroupLedgerRequest) returns (RemovePeerGroupLedgerResponse);
+  // health checks
+  rpc healthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
+  rpc healthCheckWatch(google.protobuf.Empty) returns (stream HealthCheckResponse);
+}
+/* =========================== */
+/* GET */
+/* =========================== */
+message GetObjectRequest {
+  string id = 1;
+}
+
+message GetObjectResponse {
+  grpc.models.GameObjectGrpc object = 1;
+  bool result = 2;
+}
+/* =========================== */
+/* PUT */
+/* =========================== */
+message PutObjectRequest {
+  grpc.models.GameObjectGrpc object = 1;
+}
+
+message PutObjectResponse {
+  bool result = 1;
+}
+/* =========================== */
+/* UPDATE */
+/* =========================== */
+message UpdateObjectRequest {
+  grpc.models.GameObjectGrpc object = 1;
+}
+
+message UpdateObjectResponse {
+  bool result = 1;
+}
+/* =========================== */
+/* DELETE */
+/* =========================== */
+message DeleteObjectRequest {
+  string id = 1;
+}
+
+message DeleteObjectResponse {
+  bool result = 1;
+}
+
+/* =========================== */
+/* ADD TO GROUP-LEDGER */
+/* =========================== */
+message AddToGroupLedgerRequest {
+  string objectId = 1;
+  string peerId = 2; // Hostname for now
+  int64 ttl = 3;
+}
+
+message AddToGroupLedgerResponse {
+  bool result = 1;
+}
+/* =========================== */
+
+/* =========================== */
+/* REMOVE PEER - GROUP-LEDGER */
+/* =========================== */
+message RemovePeerGroupLedgerRequest {
+  string peerId = 1; // Hostname for now
+}
+
+message RemovePeerGroupLedgerResponse {
+  bool result = 1;
+}
+/* =========================== */
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+    SERVICE_UNKNOWN = 3;  // Used only by the Watch method.
+  }
+  ServingStatus status = 1;
+}

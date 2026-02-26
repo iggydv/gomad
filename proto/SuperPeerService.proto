@@ -1,0 +1,151 @@
+syntax = "proto3";
+package grpc.superpeerservice;
+option go_package = "github.com/iggydv12/nomad-go/gen/proto/superpeerservice";
+import "google/protobuf/empty.proto";
+
+/**
+ * 1. handling joining peers,
+ * 2. facilitating peer migration,
+ * 3. ensuring group consistency (Section 5.3.5),
+ * 4. initiating object repair, and
+ * 5. maintaining a list of group objects and a list of peers on which those objects are stored (Section 5.2.2.4)
+ */
+
+service SuperPeerService {
+  rpc handleJoin(JoinRequest) returns (JoinResponseWithLedger);
+  rpc handleLeave(LeaveRequest) returns (LeaveResponse);
+  rpc repair(RepairObjectRequest) returns (RepairObjectResponse);
+  rpc migrate(MigrationRequest) returns (MigrationResponse);
+  rpc addObjectReference(AddObjectRequest) returns (AddObjectResponse);
+  rpc removePeerGroupLedger(RemovePeerGroupLedgerRequest) returns (RemovePeerGroupLedgerResponse);
+  rpc notifyPeers(NotifyPeersRequest) returns (NotifyPeersResponse);
+  rpc pingPeer(PingRequest) returns (PingResponse);
+  rpc updatePositionReference(PositionUpdateRequest) returns (PositionUpdateResponse);
+}
+/* =========================== */
+/* JOIN                        */
+/* =========================== */
+message JoinRequest {
+  string peerServerHost = 1;
+  string groupStorageServerHost = 2;
+  VirtualPosition position = 3;
+}
+
+message JoinResponseWithLedger {
+  bool accepted = 1;
+  MultiMapPair objectLedger = 2;
+  MultiMapPair peerLedger = 3;
+  int32 replicationFactor = 4;
+}
+
+message MultiMapPair {
+  map<string, MetaDataCollection> keyPair = 1;
+}
+
+message MetaDataCollection {
+  repeated MetaData values = 1;
+}
+
+message MetaData {
+  string id = 1; // peer or object ID
+  int64 ttl = 2;
+}
+
+/* =========================== */
+/* PING                        */
+/* =========================== */
+message PingRequest {
+  string hostname = 1; // ip:port
+}
+
+message PingResponse {
+  bool result = 1;
+}
+
+/* =========================== */
+/* LEAVE                       */
+/* =========================== */
+message LeaveRequest {
+  string peerServerHostname = 1; // ip:port
+  string groupStorageServerHostname = 2; // ip:port
+}
+
+message LeaveResponse {
+  bool success = 1;
+}
+
+/* =========================== */
+/* REPAIR                      */
+/* =========================== */
+message RepairObjectRequest {
+  string objectId = 1;
+}
+
+message RepairObjectResponse {
+  bool succeed = 1;
+}
+
+/* =========================== */
+/* MIGRATE                     */
+/* =========================== */
+message MigrationRequest {
+  string peerId = 1;
+  string newSuperPeerId = 2;
+}
+
+message MigrationResponse {
+  bool succeed = 1;
+}
+
+message PositionUpdateRequest {
+  VirtualPosition position = 1;
+  string peerId = 2;
+}
+
+message PositionUpdateResponse {
+  bool acknowledge = 1;
+  string newSuperPeer = 2;
+  string newGroupName = 3;
+}
+
+/* =========================== */
+/* ADD OBJECT                  */
+/* =========================== */
+message AddObjectRequest {
+  string objectId = 1;
+  string peerId = 2;
+  int64 ttl = 3;
+}
+
+message AddObjectResponse {
+  bool succeed = 1;
+}
+
+/* =========================== */
+/* REMOVE PEER - GROUP-LEDGER */
+/* =========================== */
+message RemovePeerGroupLedgerRequest {
+  string peerId = 1; // Hostname for now
+}
+
+message RemovePeerGroupLedgerResponse {
+  bool result = 1;
+}
+/* =========================== */
+
+/* =========================== */
+/* Notify Peers                */
+/* =========================== */
+message NotifyPeersRequest {
+  string host = 1;
+}
+
+message NotifyPeersResponse {
+  bool result = 1;
+}
+
+message VirtualPosition {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
