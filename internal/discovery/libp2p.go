@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,10 +34,11 @@ const (
 type voronoiRecord struct {
 	PeerID    string  `json:"peerID"`
 	Multiaddr string  `json:"multiaddr"`
+	SPHost    string  `json:"spHost"`    // SuperPeerService gRPC address (host:port)
 	X         float64 `json:"x"`
 	Y         float64 `json:"y"`
 	GroupName string  `json:"groupName"`
-	GSHost    string  `json:"gsHost"` // group storage hostname:port
+	GSHost    string  `json:"gsHost"`    // GroupStorageService gRPC address (host:port)
 }
 
 // LibP2PDiscovery implements PeerDiscovery using libp2p mDNS + Kademlia DHT.
@@ -46,7 +48,8 @@ type LibP2PDiscovery struct {
 	dht           *dht.IpfsDHT
 	logger        *zap.Logger
 	groupName     string
-	gsHost        string // group storage hostname
+	gsHost        string // GroupStorageService advertised gRPC address
+	spHost        string // SuperPeerService advertised gRPC address
 	voronoi       VoronoiQuerier
 	worldW        float64
 	worldH        float64
@@ -69,6 +72,17 @@ func NewLibP2PDiscovery(worldW, worldH float64, voronoi VoronoiQuerier, logger *
 	}
 }
 
+// nomadValidator accepts any value stored under the /nomad/ DHT namespace.
+type nomadValidator struct{}
+
+func (nomadValidator) Validate(_ string, _ []byte) error { return nil }
+func (nomadValidator) Select(_ string, vals [][]byte) (int, error) {
+	if len(vals) == 0 {
+		return 0, fmt.Errorf("no values")
+	}
+	return 0, nil
+}
+
 // Init creates the libp2p host, starts mDNS discovery, and bootstraps the Kademlia DHT.
 func (d *LibP2PDiscovery) Init() error {
 	h, err := libp2p.New(
@@ -80,8 +94,16 @@ func (d *LibP2PDiscovery) Init() error {
 	}
 	d.host = h
 
-	// Start Kademlia DHT in server mode
-	kadDHT, err := dht.New(context.Background(), h, dht.Mode(dht.ModeServer))
+	// Start Kademlia DHT in server mode.
+	// Use a custom protocol prefix (/nomad) so the DHT is isolated from the
+	// IPFS network and is not subject to the /ipfs validator constraint
+	// (/pk and /ipns only). With a custom prefix we can register our own
+	// /nomad/* key validators freely.
+	kadDHT, err := dht.New(context.Background(), h,
+		dht.Mode(dht.ModeServer),
+		dht.ProtocolPrefix("/nomad"),
+		dht.NamespacedValidator("nomad", nomadValidator{}),
+	)
 	if err != nil {
 		return fmt.Errorf("kademlia dht: %w", err)
 	}
@@ -112,6 +134,7 @@ func (d *LibP2PDiscovery) RegisterAsSuperPeer(groupName string, pos spatial.Virt
 	rec := voronoiRecord{
 		PeerID:    d.host.ID().String(),
 		Multiaddr: d.primaryMultiaddr(),
+		SPHost:    d.spHost,
 		X:         pos.X,
 		Y:         pos.Y,
 		GroupName: groupName,
@@ -191,6 +214,8 @@ func (d *LibP2PDiscovery) FindSuperPeers() ([]SuperPeerInfo, error) {
 		results = append(results, SuperPeerInfo{
 			PeerID:    rec.PeerID,
 			Multiaddr: rec.Multiaddr,
+			SPHost:    rec.SPHost,
+			GSHost:    rec.GSHost,
 			Position:  spatial.VirtualPosition{X: rec.X, Y: rec.Y},
 			GroupName: rec.GroupName,
 		})
@@ -224,11 +249,34 @@ func (d *LibP2PDiscovery) RefreshLeadership(groupName string, pos spatial.Virtua
 	return d.RegisterAsSuperPeer(groupName, pos)
 }
 
-// SetGroupStorageHostname sets the advertised group storage address.
+// SetGroupStorageHostname sets the advertised GroupStorageService gRPC address.
 func (d *LibP2PDiscovery) SetGroupStorageHostname(host string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.gsHost = host
+}
+
+// SetSuperPeerHostname sets the advertised SuperPeerService gRPC address.
+func (d *LibP2PDiscovery) SetSuperPeerHostname(host string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.spHost = host
+}
+
+// PrimaryIP returns the first non-loopback IPv4 address that libp2p is
+// listening on, falling back to 127.0.0.1. Use this to build advertised
+// gRPC addresses that remote nodes can actually reach.
+func (d *LibP2PDiscovery) PrimaryIP() string {
+	for _, addr := range d.host.Addrs() {
+		s := addr.String() // e.g. /ip4/172.20.0.2/tcp/45063
+		if strings.HasPrefix(s, "/ip4/") {
+			parts := strings.Split(s, "/")
+			if len(parts) >= 3 && parts[2] != "127.0.0.1" {
+				return parts[2]
+			}
+		}
+	}
+	return "127.0.0.1"
 }
 
 // GetGroupName returns the current group name.

@@ -14,8 +14,9 @@ import (
 type SitePoint struct {
 	PeerID    string
 	GroupName string
-	Multiaddr string // gRPC target
-	GSHost    string // group storage hostname
+	Multiaddr string // libp2p p2p multiaddr
+	SPHost    string // SuperPeerService gRPC address (host:port)
+	GSHost    string // GroupStorageService gRPC address (host:port)
 	Position  VirtualPosition
 }
 

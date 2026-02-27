@@ -1,5 +1,5 @@
 # Multi-stage Go build — no JVM, no ZooKeeper needed
-FROM golang:1.23-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -12,7 +12,7 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
 
 COPY . .
 RUN bash scripts/generate.sh 2>/dev/null || true
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o nomad ./cmd/nomad
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o nomad ./cmd
 
 # Final image — just the binary
 FROM alpine:3.20

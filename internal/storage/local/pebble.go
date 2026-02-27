@@ -2,6 +2,7 @@
 package local
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -75,7 +76,7 @@ func (p *PebbleStorage) Put(obj *models.GameObjectGrpc) (bool, error) {
 // Get retrieves an object by ID.
 func (p *PebbleStorage) Get(id string) (*models.GameObjectGrpc, error) {
 	data, closer, err := p.db.Get([]byte(id))
-	if err == pebble.ErrNotFound {
+	if errors.Is(err, pebble.ErrNotFound) {
 		return nil, fmt.Errorf("not found: %s", id)
 	}
 	if err != nil {

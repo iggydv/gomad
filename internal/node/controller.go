@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -82,34 +83,50 @@ func (c *Controller) Run(ctx context.Context) error {
 	virtualPos := spatial.NewRandomPosition(c.cfg.Node.World.Width, c.cfg.Node.World.Height)
 
 	// --- 6. Assign ports ---
-	peerServerAddr := "0.0.0.0:" + fmt.Sprintf("%d", randomPort(5001, 8999))
-	gsAddr := "0.0.0.0:" + fmt.Sprintf("%d", randomPort(5001, 8999))
+	// Bind on all interfaces; advertise the primary non-loopback IP so that
+	// other containers can actually reach the gRPC servers.
+	primaryIP := disc.PrimaryIP()
+	peerServerBind := "0.0.0.0:" + fmt.Sprintf("%d", randomPort(5001, 8999))
+	gsAddrBind := "0.0.0.0:" + fmt.Sprintf("%d", randomPort(5001, 8999))
 	restAddr := "0.0.0.0:" + fmt.Sprintf("%d", randomPort(8080, 9999))
 
-	// Initialize storage
+	peerServerAddr := strings.Replace(peerServerBind, "0.0.0.0", primaryIP, 1)
+	gsAddr := strings.Replace(gsAddrBind, "0.0.0.0", primaryIP, 1)
+
+	// Initialize storage (uses gsAddr for self-identity in the group ledger)
 	if err := ps.Init(gsAddr, c.cfg.Node.Storage.StorageMode, c.cfg.Node.Storage.RetrievalMode); err != nil {
 		return fmt.Errorf("storage init: %w", err)
 	}
 	defer ps.Close()
 
 	disc.SetGroupStorageHostname(gsAddr)
+	disc.SetSuperPeerHostname(peerServerAddr)
 
 	// --- 7. Determine role and bootstrap ---
 	var role ComponentType
-	superPeers, _ := disc.FindSuperPeers()
+	var superPeers []discovery.SuperPeerInfo
+	if c.nodeType != RoleSuperPeer {
+		superPeers = c.waitForSuperPeers(ctx, disc)
+	}
+	var cleanup func()
 	if c.nodeType == RoleSuperPeer || len(superPeers) == 0 {
 		role = RoleSuperPeer
 		c.logger.Info("Assuming super-peer role")
-		if err := c.bootstrapSuperPeer(disc, voronoi, gl, gs, ps, virtualPos, peerServerAddr, gsAddr, restAddr); err != nil {
+		var err error
+		cleanup, err = c.bootstrapSuperPeer(disc, voronoi, gl, gs, ps, virtualPos, peerServerBind, gsAddrBind, peerServerAddr, gsAddr, restAddr)
+		if err != nil {
 			return err
 		}
 	} else {
 		role = RolePeer
 		c.logger.Info("Assuming peer role")
-		if err := c.bootstrapPeer(disc, voronoi, gl, ps, virtualPos, peerServerAddr, gsAddr, restAddr, superPeers); err != nil {
+		var err error
+		cleanup, err = c.bootstrapPeer(disc, voronoi, gl, ps, virtualPos, peerServerBind, gsAddrBind, peerServerAddr, gsAddr, restAddr, superPeers)
+		if err != nil {
 			return err
 		}
 	}
+	defer cleanup()
 
 	c.logger.Info("Node running",
 		zap.String("role", role.String()),
@@ -136,8 +153,8 @@ func (c *Controller) bootstrapSuperPeer(
 	gs *group.GroupStorage,
 	ps *storage.PeerStorage,
 	pos spatial.VirtualPosition,
-	peerServerAddr, gsAddr, restAddr string,
-) error {
+	peerServerBind, gsAddrBind, peerServerAddr, gsAddr, restAddr string,
+) (func(), error) {
 	groupName := fmt.Sprintf("group-%d", rand.Int63()&0xFFFF)
 	sp := NewSuperPeer(c.cfg, gl, c.logger)
 	sp.TakeLeadership(groupName)
@@ -155,20 +172,19 @@ func (c *Controller) bootstrapSuperPeer(
 		Position:  pos,
 	})
 
-	// Start gRPC servers
+	// Start gRPC servers (bind on 0.0.0.0; advertise real IP via disc)
 	spSrv := servers2.NewSuperPeerServiceServer(sp, gl, c.logger)
-	grpcSP, err := spSrv.Serve(peerServerAddr)
+	grpcSP, err := spSrv.Serve(peerServerBind)
 	if err != nil {
-		return fmt.Errorf("superpeer gRPC serve: %w", err)
+		return nil, fmt.Errorf("superpeer gRPC serve: %w", err)
 	}
-	defer grpcSP.Stop()
 
 	gsSrv := servers2.NewGroupStorageServiceServer(&groupStorageHandler{ps: ps, gl: gl}, c.logger)
-	grpcGS, err := gsSrv.Serve(gsAddr)
+	grpcGS, err := gsSrv.Serve(gsAddrBind)
 	if err != nil {
-		return fmt.Errorf("group storage gRPC serve: %w", err)
+		grpcSP.Stop()
+		return nil, fmt.Errorf("group storage gRPC serve: %w", err)
 	}
-	defer grpcGS.Stop()
 
 	// Start schedulers
 	c.startSuperPeerSchedulers(context.Background(), sp, gl, gs, disc, groupName, pos)
@@ -176,7 +192,10 @@ func (c *Controller) bootstrapSuperPeer(
 	// Start REST API
 	c.startRESTServer(restAddr, ps, gl)
 
-	return nil
+	return func() {
+		grpcSP.Stop()
+		grpcGS.Stop()
+	}, nil
 }
 
 func (c *Controller) bootstrapPeer(
@@ -185,9 +204,9 @@ func (c *Controller) bootstrapPeer(
 	gl *ledger.GroupLedger,
 	ps *storage.PeerStorage,
 	pos spatial.VirtualPosition,
-	peerServerAddr, gsAddr, restAddr string,
+	peerServerBind, gsAddrBind, peerServerAddr, gsAddr, restAddr string,
 	superPeers []discovery.SuperPeerInfo,
-) error {
+) (func(), error) {
 	// Find nearest super-peer via Voronoi
 	sites := make([]spatial.SitePoint, len(superPeers))
 	for i, sp := range superPeers {
@@ -195,6 +214,8 @@ func (c *Controller) bootstrapPeer(
 			PeerID:    sp.PeerID,
 			GroupName: sp.GroupName,
 			Multiaddr: sp.Multiaddr,
+			SPHost:    sp.SPHost,
+			GSHost:    sp.GSHost,
 			Position:  sp.Position,
 		}
 	}
@@ -202,32 +223,34 @@ func (c *Controller) bootstrapPeer(
 
 	nearest, err := vw.FindNearestSuperPeer(pos)
 	if err != nil {
-		return fmt.Errorf("find nearest super-peer: %w", err)
+		return nil, fmt.Errorf("find nearest super-peer: %w", err)
 	}
 
 	peer := NewPeer(c.peerID, c.cfg, ps, gl, c.logger)
 	peer.SetAddresses(peerServerAddr, gsAddr)
 	peer.SetPosition(pos)
 
-	if err := peer.JoinGroup(nearest.GroupName, nearest.Multiaddr); err != nil {
-		return fmt.Errorf("join group: %w", err)
-	}
-
-	// Start gRPC PeerService server
+	// Start gRPC servers BEFORE joining: when the super-peer fans out
+	// NotifyPeers to existing members (inside JoinGroup → NotifyPeers),
+	// this peer's listeners must already be accepting connections.
 	peerSrv := servers2.NewPeerServiceServer(peer, c.logger)
-	grpcPeer, err := peerSrv.Serve(peerServerAddr)
+	grpcPeer, err := peerSrv.Serve(peerServerBind)
 	if err != nil {
-		return fmt.Errorf("peer gRPC serve: %w", err)
+		return nil, fmt.Errorf("peer gRPC serve: %w", err)
 	}
-	defer grpcPeer.Stop()
 
-	// Start GroupStorage gRPC server (this peer also serves group storage)
 	gsSrv := servers2.NewGroupStorageServiceServer(&groupStorageHandler{ps: ps, gl: gl}, c.logger)
-	grpcGS, err := gsSrv.Serve(gsAddr)
+	grpcGS, err := gsSrv.Serve(gsAddrBind)
 	if err != nil {
-		return fmt.Errorf("group storage gRPC serve: %w", err)
+		grpcPeer.Stop()
+		return nil, fmt.Errorf("group storage gRPC serve: %w", err)
 	}
-	defer grpcGS.Stop()
+
+	if err := peer.JoinGroup(nearest.GroupName, nearest.SPHost); err != nil {
+		grpcPeer.Stop()
+		grpcGS.Stop()
+		return nil, fmt.Errorf("join group: %w", err)
+	}
 
 	// Start schedulers
 	c.startPeerSchedulers(context.Background(), peer, ps, gl, disc)
@@ -235,7 +258,10 @@ func (c *Controller) bootstrapPeer(
 	// Start REST API
 	c.startRESTServer(restAddr, ps, gl)
 
-	return nil
+	return func() {
+		grpcPeer.Stop()
+		grpcGS.Stop()
+	}, nil
 }
 
 func (c *Controller) startSuperPeerSchedulers(ctx context.Context, sp *SuperPeer, gl *ledger.GroupLedger, gs *group.GroupStorage, disc *discovery.LibP2PDiscovery, groupName string, pos spatial.VirtualPosition) {
@@ -346,6 +372,32 @@ func (c *Controller) startRESTServer(addr string, ps *storage.PeerStorage, gl *l
 	// REST router is started in api/rest package — wired here
 	c.logger.Info("REST API starting", zap.String("addr", addr))
 	// Actual gin server is started by the rest package
+}
+
+// waitForSuperPeers polls FindSuperPeers with exponential backoff until at
+// least one super-peer is visible or the context is cancelled. If no
+// super-peer is found within the window the caller should assume the
+// super-peer role itself.
+func (c *Controller) waitForSuperPeers(ctx context.Context, disc *discovery.LibP2PDiscovery) []discovery.SuperPeerInfo {
+	delays := []time.Duration{1, 2, 4, 8, 8, 8}
+	for i, d := range delays {
+		sps, _ := disc.FindSuperPeers()
+		if len(sps) > 0 {
+			return sps
+		}
+		wait := d * time.Second
+		c.logger.Info("No super-peer found yet, retrying",
+			zap.Int("attempt", i+1),
+			zap.Duration("wait", wait),
+		)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(wait):
+		}
+	}
+	sps, _ := disc.FindSuperPeers()
+	return sps
 }
 
 // randomPort picks a random free TCP port in the given range.

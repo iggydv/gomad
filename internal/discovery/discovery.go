@@ -5,8 +5,10 @@ import "github.com/iggydv12/gomad/internal/spatial"
 
 // SuperPeerInfo holds information about a discovered super-peer.
 type SuperPeerInfo struct {
-	PeerID   string
+	PeerID    string
 	Multiaddr string
+	SPHost    string // SuperPeerService gRPC address (host:port)
+	GSHost    string // GroupStorageService gRPC address (host:port)
 	Position  spatial.VirtualPosition
 	GroupName string
 }
