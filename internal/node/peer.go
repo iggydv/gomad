@@ -1,11 +1,13 @@
 package node
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 
 	retry "github.com/avast/retry-go/v4"
 	"github.com/iggydv12/gomad/internal/api/grpc/clients"
+	"github.com/iggydv12/gomad/internal/discovery"
 	"go.uber.org/zap"
 
 	"github.com/iggydv12/gomad/internal/config"
@@ -31,6 +33,10 @@ type Peer struct {
 	cfg             *config.Config
 	logger          *zap.Logger
 	active          bool
+
+	// Set by the controller to enable election and role transitions.
+	disc               *discovery.LibP2PDiscovery
+	transitionCallback func(transitionRequest)
 }
 
 // NewPeer creates a Peer.
@@ -50,6 +56,21 @@ func (p *Peer) SetAddresses(peerServer, gsHost string) {
 	defer p.mu.Unlock()
 	p.peerServer = peerServer
 	p.gsHost = gsHost
+}
+
+// SetDisc injects the discovery layer so the peer can run elections.
+func (p *Peer) SetDisc(d *discovery.LibP2PDiscovery) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.disc = d
+}
+
+// SetTransitionCallback registers the controller callback invoked when this
+// peer needs a role transition (election win or reconnect).
+func (p *Peer) SetTransitionCallback(cb func(transitionRequest)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.transitionCallback = cb
 }
 
 // SetPosition sets the virtual position.
@@ -137,10 +158,85 @@ func (p *Peer) RemoveGroupStoragePeer(host string) bool {
 }
 
 func (p *Peer) HandleSuperPeerLeave() bool {
-	p.logger.Info("Super-peer has left — attempting leader election")
-	// Trigger re-join / election via the controller
+	p.logger.Info("Super-peer has left — starting election")
+
+	p.mu.Lock()
+	group := p.group
+	pos := p.virtualPos
+	disc := p.disc
+	cb := p.transitionCallback
+	p.active = false // deactivate during election; schedulers will idle
+	p.mu.Unlock()
+
+	if disc == nil || cb == nil {
+		// No discovery / controller wired — nothing to do.
+		return true
+	}
+
+	go func() {
+		// Jitter (0–200 ms) to reduce thundering-herd.
+		jitter := time.Duration(rand.Int63n(int64(200 * time.Millisecond)))
+		time.Sleep(jitter)
+
+		won, err := disc.TryLeaderElection(group, pos)
+		if err != nil {
+			p.logger.Warn("leader election error", zap.Error(err))
+		}
+		if won {
+			cb(transitionRequest{
+				toSuperPeer: true,
+				permanent:   false,
+				groupName:   group,
+			})
+		} else {
+			p.reconnectToNewSuperPeer()
+		}
+	}()
 	return true
 }
+
+// reconnectToNewSuperPeer polls FindSuperPeers with exponential back-off and
+// enqueues a peer transition once a super-peer is discovered.
+func (p *Peer) reconnectToNewSuperPeer() {
+	p.mu.RLock()
+	disc := p.disc
+	cb := p.transitionCallback
+	group := p.group
+	p.mu.RUnlock()
+
+	if disc == nil || cb == nil {
+		return
+	}
+
+	delays := []time.Duration{1, 2, 4, 8, 16}
+	for _, d := range delays {
+		sps, err := disc.FindSuperPeers()
+		if err == nil && len(sps) > 0 {
+			cb(transitionRequest{toSuperPeer: false, superPeers: sps})
+			return
+		}
+		p.logger.Info("reconnect: no super-peer yet, retrying",
+			zap.Duration("backoff", d*time.Second))
+		time.Sleep(d * time.Second)
+	}
+
+	// Last attempt
+	sps, err := disc.FindSuperPeers()
+	if err == nil && len(sps) > 0 {
+		cb(transitionRequest{toSuperPeer: false, superPeers: sps})
+		return
+	}
+
+	// All retries exhausted — self-elect as provisional SP.
+	p.logger.Warn("reconnect: no super-peer found after all retries — self-electing",
+		zap.String("group", group))
+	cb(transitionRequest{
+		toSuperPeer: true,
+		permanent:   false,
+		groupName:   group,
+	})
+}
+
 
 func (p *Peer) RepairObjects(objectIDs []string) bool {
 	for _, objectID := range objectIDs {

@@ -32,6 +32,7 @@ type SuperPeer struct {
 	cfg         *config.Config
 	logger      *zap.Logger
 	running     bool
+	provisional bool // true if this SP will yield to a dedicated SP
 }
 
 // NewSuperPeer creates a SuperPeer.
@@ -46,13 +47,55 @@ func NewSuperPeer(cfg *config.Config, gl *ledger.GroupLedger, logger *zap.Logger
 	}
 }
 
-// TakeLeadership registers as the group leader with the given virtual position.
-func (sp *SuperPeer) TakeLeadership(groupName string) {
+// TakeLeadership registers as the group leader.
+// provisional=true means this SP will yield to a dedicated SP if one joins.
+func (sp *SuperPeer) TakeLeadership(groupName string, provisional bool) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	sp.groupName = groupName
+	sp.provisional = provisional
 	sp.running = true
-	sp.logger.Info("Super-peer took leadership", zap.String("group", groupName))
+	sp.logger.Info("Super-peer took leadership",
+		zap.String("group", groupName),
+		zap.Bool("provisional", provisional),
+	)
+}
+
+// IsProvisional returns true if this SP will yield to a dedicated SP.
+func (sp *SuperPeer) IsProvisional() bool {
+	sp.mu.RLock()
+	defer sp.mu.RUnlock()
+	return sp.provisional
+}
+
+// HandOffAndDemote notifies all connected peers that this SP is leaving
+// (triggering their election / reconnect logic) and then stops itself.
+// Call this before transitioning the node to the peer role.
+func (sp *SuperPeer) HandOffAndDemote(newSPAddr string) {
+	sp.logger.Info("Handing off leadership to dedicated SP", zap.String("newSP", newSPAddr))
+
+	sp.mu.RLock()
+	peerList := make([]*clients.PeerClient, 0, len(sp.peerClients))
+	for _, c := range sp.peerClients {
+		peerList = append(peerList, c)
+	}
+	sp.mu.RUnlock()
+
+	// Fan out HandleSuperPeerLeave to all connected peers so they trigger
+	// their own election/reconnect cycle.  The dedicated SP is already in the
+	// DHT, so peers that lose the election will find it via FindSuperPeers.
+	for _, c := range peerList {
+		go func(pc *clients.PeerClient) {
+			if _, err := pc.HandleSuperPeerLeave(); err != nil {
+				sp.logger.Warn("handOff: HandleSuperPeerLeave failed",
+					zap.String("peer", pc.Target()), zap.Error(err))
+			}
+		}(c)
+	}
+
+	sp.mu.Lock()
+	sp.running = false
+	sp.mu.Unlock()
 }
 
 // IsRunning returns true if this super-peer is active.

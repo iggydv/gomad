@@ -378,7 +378,23 @@ func (d *LibP2PDiscovery) TryLeaderElection(groupName string, pos spatial.Virtua
 
 	if winner == myID {
 		d.logger.Info("Won leader election", zap.String("group", groupName))
-		return true, d.RegisterAsSuperPeer(groupName, pos)
+		if err := d.RegisterAsSuperPeer(groupName, pos); err != nil {
+			return false, err
+		}
+		// Double-check: re-read the leader key to confirm our write was not
+		// overwritten by a concurrent winner with a lower PeerID (TOCTOU fix).
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer checkCancel()
+		data, err := d.dht.GetValue(checkCtx, key)
+		if err == nil {
+			var rec voronoiRecord
+			if json.Unmarshal(data, &rec) == nil && rec.PeerID != myID {
+				d.logger.Info("Lost DHT write race — another node is leader",
+					zap.String("group", groupName), zap.String("leader", rec.PeerID))
+				return false, nil
+			}
+		}
+		return true, nil
 	}
 
 	d.logger.Info("Lost leader election", zap.String("winner", winner))

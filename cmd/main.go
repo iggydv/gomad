@@ -29,7 +29,7 @@ func main() {
 		RunE:  runStart,
 	}
 
-	startCmd.Flags().StringVarP(&nodeType, "type", "t", "peer", "Node type: peer | super-peer")
+	startCmd.Flags().StringVarP(&nodeType, "type", "t", "peer", "Node type: 'peer' (auto-elects if network is empty) | 'super-peer' (permanent leader, skips discovery)")
 	startCmd.Flags().StringVarP(&cfgFile, "config", "c", "", "Path to config file (default: configs/config.yaml)")
 	rootCmd.AddCommand(startCmd)
 

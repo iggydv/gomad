@@ -8,8 +8,22 @@ import (
 
 // Config is the root configuration struct
 type Config struct {
-	Node     NodeConfig     `mapstructure:"node"`
-	Schedule ScheduleConfig `mapstructure:"schedule"`
+	Node      NodeConfig      `mapstructure:"node"`
+	Schedule  ScheduleConfig  `mapstructure:"schedule"`
+	Bootstrap BootstrapConfig `mapstructure:"bootstrap"`
+}
+
+// BootstrapConfig controls role-discovery and election timing.
+type BootstrapConfig struct {
+	// DiscoveryWindow is how long to poll for super-peers before assuming the
+	// provisional SP role (default 5s).
+	DiscoveryWindow time.Duration `mapstructure:"discoveryWindow"`
+	// ElectionTimeout is the maximum time allowed for a leader election
+	// (default 10s).
+	ElectionTimeout time.Duration `mapstructure:"electionTimeout"`
+	// ProvisionalPollInterval is how often a provisional SP polls the DHT for
+	// a dedicated SP that should take over (default 30s).
+	ProvisionalPollInterval time.Duration `mapstructure:"provisionalPollInterval"`
 }
 
 // NodeConfig holds per-node configuration
@@ -82,6 +96,9 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("schedule.ledgerCleanup", 60*time.Second)
 	v.SetDefault("schedule.repair", 6000*time.Second)
 	v.SetDefault("schedule.updatePosition", 10*time.Second)
+	v.SetDefault("bootstrap.discoveryWindow", 5*time.Second)
+	v.SetDefault("bootstrap.electionTimeout", 10*time.Second)
+	v.SetDefault("bootstrap.provisionalPollInterval", 30*time.Second)
 
 	if cfgFile != "" {
 		v.SetConfigFile(cfgFile)
