@@ -23,11 +23,11 @@ type SitePoint struct {
 // VoronoiWrapper manages the Voronoi diagram for group assignment.
 // Maps to VoronoiWrapper.java in the Java implementation.
 type VoronoiWrapper struct {
-	mu         sync.RWMutex
-	sites      []SitePoint
-	diagram    *voronoi.Diagram
-	worldW     float64
-	worldH     float64
+	mu      sync.RWMutex
+	sites   []SitePoint
+	diagram *voronoi.Diagram
+	worldW  float64
+	worldH  float64
 }
 
 // NewVoronoiWrapper creates a VoronoiWrapper for the given world dimensions.
@@ -198,4 +198,5 @@ func cellIndex(d *voronoi.Diagram, cell *voronoi.Cell) int {
 		}
 	}
 	return -1
+
 }

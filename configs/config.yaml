@@ -24,3 +24,8 @@ schedule:
   ledgerCleanup: 60s
   repair: 6000s
   updatePosition: 10s
+
+bootstrap:
+  discoveryWindow: 5s
+  electionTimeout: 10s
+  provisionalPollInterval: 30s

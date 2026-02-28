@@ -29,9 +29,11 @@ type SuperPeer struct {
 
 	groupLedger *ledger.GroupLedger
 	groupName   string
+	gsHost      string // this SP's own GroupStorageService address
 	cfg         *config.Config
 	logger      *zap.Logger
 	running     bool
+	provisional bool // true if this SP will yield to a dedicated SP
 }
 
 // NewSuperPeer creates a SuperPeer.
@@ -46,13 +48,60 @@ func NewSuperPeer(cfg *config.Config, gl *ledger.GroupLedger, logger *zap.Logger
 	}
 }
 
-// TakeLeadership registers as the group leader with the given virtual position.
-func (sp *SuperPeer) TakeLeadership(groupName string) {
+// TakeLeadership registers as the group leader.
+// provisional=true means this SP will yield to a dedicated SP if one joins.
+// gsHost is this node's own GroupStorageService address; it is advertised to
+// every peer that joins so that peers include the SP in their replication
+// fan-out (FastPut / SafePut).
+func (sp *SuperPeer) TakeLeadership(groupName string, provisional bool, gsHost string) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	sp.groupName = groupName
+	sp.provisional = provisional
+	sp.gsHost = gsHost
 	sp.running = true
-	sp.logger.Info("Super-peer took leadership", zap.String("group", groupName))
+	sp.logger.Info("Super-peer took leadership",
+		zap.String("group", groupName),
+		zap.Bool("provisional", provisional),
+		zap.String("gsHost", gsHost),
+	)
+}
+
+// IsProvisional returns true if this SP will yield to a dedicated SP.
+func (sp *SuperPeer) IsProvisional() bool {
+	sp.mu.RLock()
+	defer sp.mu.RUnlock()
+	return sp.provisional
+}
+
+// HandOffAndDemote notifies all connected peers that this SP is leaving
+// (triggering their election / reconnect logic) and then stops itself.
+// Call this before transitioning the node to the peer role.
+func (sp *SuperPeer) HandOffAndDemote(newSPAddr string) {
+	sp.logger.Info("Handing off leadership to dedicated SP", zap.String("newSP", newSPAddr))
+
+	sp.mu.RLock()
+	peerList := make([]*clients.PeerClient, 0, len(sp.peerClients))
+	for _, c := range sp.peerClients {
+		peerList = append(peerList, c)
+	}
+	sp.mu.RUnlock()
+
+	// Fan out HandleSuperPeerLeave to all connected peers so they trigger
+	// their own election/reconnect cycle.  The dedicated SP is already in the
+	// DHT, so peers that lose the election will find it via FindSuperPeers.
+	for _, c := range peerList {
+		go func(pc *clients.PeerClient) {
+			if _, err := pc.HandleSuperPeerLeave(); err != nil {
+				sp.logger.Warn("handOff: HandleSuperPeerLeave failed",
+					zap.String("peer", pc.Target()), zap.Error(err))
+			}
+		}(c)
+	}
+
+	sp.mu.Lock()
+	sp.running = false
+	sp.mu.Unlock()
 }
 
 // IsRunning returns true if this super-peer is active.
@@ -90,6 +139,22 @@ func (sp *SuperPeer) HandleJoin(peerServer, groupStorageServer string, pos serve
 	sp.peerClients[peerServer] = c
 	sp.peerToGS[peerServer] = groupStorageServer
 	sp.gsToP[groupStorageServer] = peerServer
+
+	// Notify the new peer that the SP is also a group-storage participant.
+	// This causes the peer to open a GroupStorageClient to the SP and include
+	// it in FastPut / SafePut fan-out, enabling SP-side replication even in
+	// very small networks (e.g. 1 SP + 1 peer achieves RF=2).
+	spGSHost := sp.gsHost
+	if spGSHost != "" {
+		go func() {
+			if _, err := c.AddPeer(spGSHost); err != nil {
+				sp.logger.Warn("failed to notify peer of SP gsHost",
+					zap.String("peer", peerServer),
+					zap.String("spGSHost", spGSHost),
+					zap.Error(err))
+			}
+		}()
+	}
 
 	sp.logger.Info("Peer joined",
 		zap.String("peerServer", peerServer),
